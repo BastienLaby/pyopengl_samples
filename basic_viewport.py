@@ -496,7 +496,6 @@ class Viewport(QtOpenGL.QGLWidget):
 
 
     def mousePressEvent(self, event):
-        print "press"
         if event.button() == QtCore.Qt.MouseButton.LeftButton:
             self.ctrl.leftButton = True
             self.ctrl.turnLock = True
@@ -516,7 +515,6 @@ class Viewport(QtOpenGL.QGLWidget):
 
 
     def mouseReleaseEvent(self, event):
-        print "release"
         if event.button() == QtCore.Qt.MouseButton.LeftButton:
             self.ctrl.leftButton = False
             self.ctrl.turnLock = False
@@ -530,7 +528,6 @@ class Viewport(QtOpenGL.QGLWidget):
 
 
     def mouseMoveEvent(self, event):
-        print "move"
         if self.ctrl.altPressed:
             mouseX = event.x()
             mouseY = event.y()
@@ -550,12 +547,10 @@ class Viewport(QtOpenGL.QGLWidget):
 
 
     def wheelEvent(self, event):
-        print "wheel"
         self.updateGL()
 
 
     def keyPressEvent(self, event):
-        print "press key", event.key()
         if event.key() == QtCore.Qt.Key.Key_Alt:
             self.ctrl.altPressed = True
         elif event.key() == QtCore.Qt.Key.Key_P:
@@ -565,7 +560,6 @@ class Viewport(QtOpenGL.QGLWidget):
 
 
     def keyReleaseEvent(self, event):
-        print "release key", event.key()
         if event.key() == QtCore.Qt.Key.Key_Alt:
             self.ctrl.altPressed = False
         self.updateGL()
