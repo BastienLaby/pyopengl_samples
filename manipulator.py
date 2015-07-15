@@ -230,7 +230,7 @@ class Grid3D(RenderObject):
         glDeleteBuffers(2, vbos)
         # self.polygonMode = GL_LINE
 
-class TranslationAxis3D(RenderObject):
+class TranslationAxis3DSimple(RenderObject):
     def __init__(self, axis="x"):
         RenderObject.__init__(self)
 
@@ -266,6 +266,94 @@ class TranslationAxis3D(RenderObject):
         glEnableVertexAttribArray(1)
         glVertexAttribPointer(1, 3, GL_FLOAT, False, 0, ctypes.c_void_p(0))
         glBufferData(GL_ARRAY_BUFFER, normals.nbytes, normals, GL_STATIC_DRAW)
+
+        glBindVertexArray(0)
+        glDisableVertexAttribArray(0)
+        glBindBuffer(GL_ARRAY_BUFFER, 0)
+        glDeleteBuffers(3, vbos)
+
+
+class TranslationAxis3DComplex(RenderObject):
+    def __init__(self, axis="x"):
+        RenderObject.__init__(self)
+
+        self.vao = glGenVertexArrays(1)
+        vbos = glGenBuffers(3)
+        glBindVertexArray(self.vao)
+        
+        # cylinder
+
+        cylinderSubdiv = 10
+        cylinderWidth = 0.7
+        cylinderRadius = 0.005
+        deltaAngle = 2.0 * pi / (1.0 * cylinderSubdiv)
+
+        vertices = []
+        indices = []
+
+        for i in range(cylinderSubdiv):
+
+            if axis == "x":
+                origin = [0.0, 0.0, 0.0]
+                originFar = [cylinderWidth, 0.0, 0.0]
+                v0 = [0.0, cos(i * deltaAngle) * cylinderRadius, sin(i * deltaAngle) * cylinderRadius]
+                v1 = [cylinderWidth, cos(i * deltaAngle) * cylinderRadius, sin(i * deltaAngle) * cylinderRadius]
+                v2 = [0.0, cos((i+1) * deltaAngle) * cylinderRadius, sin((i+1) * deltaAngle) * cylinderRadius]
+                v3 = [cylinderWidth, cos((i+1) * deltaAngle) * cylinderRadius, sin((i+1) * deltaAngle) * cylinderRadius]
+
+            elif axis == "y":
+                origin = [0.0, 0.0, 0.0]
+                originFar = [0.0, cylinderWidth, 0.0]
+                v0 = [cos(i * deltaAngle) * cylinderRadius, 0.0, sin(i * deltaAngle) * cylinderRadius]
+                v1 = [cos(i * deltaAngle) * cylinderRadius, cylinderWidth, sin(i * deltaAngle) * cylinderRadius]
+                v2 = [cos((i+1) * deltaAngle) * cylinderRadius, 0.0, sin((i+1) * deltaAngle) * cylinderRadius]
+                v3 = [cos((i+1) * deltaAngle) * cylinderRadius, cylinderWidth, sin((i+1) * deltaAngle) * cylinderRadius]
+
+            elif axis == "z":
+                origin = [0.0, 0.0, 0.0]
+                originFar = [0.0, 0.0, cylinderWidth]
+                v0 = [cos(i * deltaAngle) * cylinderRadius, sin(i * deltaAngle) * cylinderRadius, 0.0]
+                v1 = [cos(i * deltaAngle) * cylinderRadius, sin(i * deltaAngle) * cylinderRadius, cylinderWidth]
+                v2 = [cos((i+1) * deltaAngle) * cylinderRadius, sin((i+1) * deltaAngle) * cylinderRadius, 0.0]
+                v3 = [cos((i+1) * deltaAngle) * cylinderRadius, sin((i+1) * deltaAngle) * cylinderRadius, cylinderWidth]
+
+            # triangle 1
+            vertices += origin
+            vertices += v0
+            vertices += v2
+
+            # triangle 2
+            vertices += v0
+            vertices += v1
+            vertices += v2
+
+            # triangle 3
+            vertices += v1
+            vertices += v2
+            vertices += v3
+
+            # triangle 4
+            vertices += originFar
+            vertices += v1
+            vertices += v3
+
+
+        indices = array(range(len(vertices) / 3), dtype=int32)
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbos[0])
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, GL_STATIC_DRAW)
+        self.vertexCount = len(vertices) / 3
+
+        vertices = array(vertices, dtype=float32)
+        glBindBuffer(GL_ARRAY_BUFFER, vbos[1])
+        glEnableVertexAttribArray(0)
+        glVertexAttribPointer(0, 3, GL_FLOAT, False, 0, ctypes.c_void_p(0))
+        glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
+
+        # normals = array(normals, dtype=float32)
+        # glBindBuffer(GL_ARRAY_BUFFER, vbos[2])
+        # glEnableVertexAttribArray(1)
+        # glVertexAttribPointer(1, 3, GL_FLOAT, False, 0, ctypes.c_void_p(0))
+        # glBufferData(GL_ARRAY_BUFFER, normals.nbytes, normals, GL_STATIC_DRAW)
 
         glBindVertexArray(0)
         glDisableVertexAttribArray(0)
@@ -522,6 +610,11 @@ class Camera():
         result[3][2] =  dot(f, self.eye)
         return result
 
+class Axis:
+    selected = False
+    pressed = False
+    hover = False
+
 class Manipulator:
     def __init__(self):
         pass
@@ -550,11 +643,6 @@ class Manipulator:
     def onResizeEvent(self, framebufferDimensions):
         pass
 
-class Axis:
-    selected = False
-    pressed = False
-    hover = False
-
 class TranslationManipulator(Manipulator):
 
     def __init__(self, viewport):
@@ -567,9 +655,9 @@ class TranslationManipulator(Manipulator):
         }
 
         self.axisRenderObjects = {
-            "x": TranslationAxis3D(axis="x"),
-            "y": TranslationAxis3D(axis="y"),
-            "z": TranslationAxis3D(axis="z")
+            "x": TranslationAxis3DComplex(axis="x"),
+            "y": TranslationAxis3DComplex(axis="y"),
+            "z": TranslationAxis3DComplex(axis="z")
         }
 
         self.axisTypeUniform = {
