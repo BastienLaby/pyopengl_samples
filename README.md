@@ -13,6 +13,7 @@ You can install them using **pip** from the unofficial packages list : http://ww
 Files description :
 
 * **basic_viewport.py** : A simple viewport featuring VBO based render objects (quad, cube, grid), programs, framebuffer, and Maya-like Camera.
+* **manipulator.py** : A simple 3D translation manipulator using pure opengl.
 
 Upcoming samples & fetures :
 * Separates files
