@@ -1,10 +1,5 @@
 #version 440
 
-in data_fs_in
-{
-    vec3 normal;
-}fs_in;
-
 const int AXIS_X = 0;
 const int AXIS_Y = 1;
 const int AXIS_Z = 2;
