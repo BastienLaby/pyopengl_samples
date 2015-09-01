@@ -464,7 +464,6 @@ class RotationCircle3d(RenderObject):
         glBindVertexArray(self.vao)
 
         subdiv = 20
-        radius = 1.0
         deltaAngle = 2.0 * math.pi / (1.0 * subdiv)
 
         vertices = []
@@ -491,7 +490,6 @@ class RotationCircle3d(RenderObject):
             else:
                 indices += [i, 0]
 
-        print len(indices)
         indices = numpy.array(indices, dtype=numpy.int32)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbos[0])
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, GL_STATIC_DRAW)
@@ -509,6 +507,7 @@ class RotationCircle3d(RenderObject):
         glDeleteBuffers(2, vbos)
 
         self.drawMode = GL_LINES
+
 
 class GLProgram():
 
@@ -678,6 +677,7 @@ class GLFramebuffer():
     def freeRessources(self):
         glDeleteFramebuffers(GLuint(self.id))
 
+
 class CameraControls:
     def __init__(self):
         self.altPressed = False
@@ -758,6 +758,7 @@ class Camera():
         result[3][1] = -numpy.dot(u, self.eye)
         result[3][2] =  numpy.dot(f, self.eye)
         return result
+
 
 class Axis:
     selected = False
@@ -1068,20 +1069,18 @@ class RotationAxis():
         n = numpy.array((self.originalNormal[0], self.originalNormal[1], self.originalNormal[2], 0.0), dtype=numpy.float32)
         self.currentNormal = numpy.dot(n, matrix)[:3]
 
-
 class RotationManipulator3d(Manipulator):
     def __init__(self, viewport):
         Manipulator.__init__(self)
 
         self.renderObjects = {
-            "quad2d": Quad2D(),
             "cube": Cube3D(),
             "circle_x": RotationCircle3d("x"),
             "circle_y": RotationCircle3d("y"),
             "circle_z": RotationCircle3d("z"),
-            "plane_x": Plane3d("x", 10.0),
-            "plane_y": Plane3d("y", 10.0),
-            "plane_z": Plane3d("z", 10.0)
+            "plane_x": Plane3d("x", 100.0),
+            "plane_y": Plane3d("y", 100.0),
+            "plane_z": Plane3d("z", 100.0)
         }
 
         self.textures = {
@@ -1097,7 +1096,6 @@ class RotationManipulator3d(Manipulator):
         self.programs = {
             "manipulator": GLProgram("manipulator.vs.glsl", "manipulator_rotation.fs.glsl"),
             "manipulator_gbuffer": GLProgram("manipulator_gbuffer.vs.glsl", "manipulator_gbuffer.fs.glsl"),
-            "blit_to_screen": GLProgram("blit_to_screen.vs.glsl", "blit_to_screen.fs.glsl"),
             "3d": GLProgram("3d.vs.glsl", "3d.fs.glsl")
         }
 
@@ -1108,18 +1106,10 @@ class RotationManipulator3d(Manipulator):
         }
 
         self.mouseClicked = False
-        self.altClicked = False
-        self.selected = False
-
-        self.lastRealX = 0.0
-        self.lastRealY = 0.0
-
         self.lastClickedWorldPos = None
 
-        self.viewport = viewport
 
-
-    def draw(self, viewport, projection, view):
+    def draw(self, projection, view):
 
         fbo = glGenFramebuffers(1)
         glBindFramebuffer(GL_FRAMEBUFFER, fbo)
@@ -1133,22 +1123,18 @@ class RotationManipulator3d(Manipulator):
         self.programs["manipulator_gbuffer"].sendUniformMatrix4fv("u_projection", projection)
         self.programs["manipulator_gbuffer"].sendUniformMatrix4fv("u_view", view)
 
-        # x rotation
-        model = numpy.eye(4, dtype=numpy.float32)
-        xrotate(model, self.axis["x"].rotation)
-        yrotate(model, self.axis["y"].rotation)
-        zrotate(model, self.axis["z"].rotation)
-
-        # print self.axis["x"].rotation, self.axis["y"].rotation, self.axis["z"].rotation
+        # compute rotation matrix (NEED TO FIX IT !)
+        rotationMatrix = numpy.eye(4, dtype=numpy.float32)
+        xrotate(rotationMatrix, self.axis["x"].rotation)
+        yrotate(rotationMatrix, self.axis["y"].rotation)
+        zrotate(rotationMatrix, self.axis["z"].rotation)
 
         # compute axis normals
+        self.axis["x"].rotateNormal(rotationMatrix)
+        self.axis["y"].rotateNormal(rotationMatrix)
+        self.axis["z"].rotateNormal(rotationMatrix)
 
-        self.axis["x"].rotateNormal(model)
-        self.axis["y"].rotateNormal(model)
-        self.axis["z"].rotateNormal(model)
-
-        self.programs["manipulator_gbuffer"].sendUniformMatrix4fv("u_model", model)
-
+        self.programs["manipulator_gbuffer"].sendUniformMatrix4fv("u_model", rotationMatrix)
 
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.textures["circle_x"], 0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -1180,18 +1166,18 @@ class RotationManipulator3d(Manipulator):
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
-
+        # test
         self.programs["3d"].use()
         self.programs["3d"].sendUniformMatrix4fv("u_projection", projection)
         self.programs["3d"].sendUniformMatrix4fv("u_view", view)
-        self.programs["3d"].sendUniformMatrix4fv("u_model", model)
+        self.programs["3d"].sendUniformMatrix4fv("u_model", rotationMatrix)
         self.renderObjects["cube"].draw()
 
 
         self.programs["manipulator"].use()
         self.programs["manipulator"].sendUniformMatrix4fv("u_projection", projection)
         self.programs["manipulator"].sendUniformMatrix4fv("u_view", view)
-        self.programs["manipulator"].sendUniformMatrix4fv("u_model", model)
+        self.programs["manipulator"].sendUniformMatrix4fv("u_model", rotationMatrix)
 
         self.programs["manipulator"].sendUniform1i("u_axis", 0)
         self.renderObjects["circle_x"].draw()
@@ -1200,57 +1186,14 @@ class RotationManipulator3d(Manipulator):
         self.programs["manipulator"].sendUniform1i("u_axis", 2)
         self.renderObjects["circle_z"].draw()
 
-
-        # debug
-        w, h = self.viewport["w"] / 3, self.viewport["h"] / 3
-
-        glViewport(self.viewport["x"], self.viewport["y"], w, h)
-        self.programs["blit_to_screen"].use()
-        self.programs["blit_to_screen"].sendTexture2d("u_texture", self.textures["circle_x"], GL_TEXTURE0)
-        self.renderObjects["quad2d"].draw()
-
-        glViewport(w + self.viewport["x"], self.viewport["y"], w, h)
-        self.programs["blit_to_screen"].use()
-        self.programs["blit_to_screen"].sendTexture2d("u_texture", self.textures["circle_y"], GL_TEXTURE0)
-        self.renderObjects["quad2d"].draw()
-
-        glViewport(2 * w + self.viewport["x"], self.viewport["y"], w, h)
-        self.programs["blit_to_screen"].use()
-        self.programs["blit_to_screen"].sendTexture2d("u_texture", self.textures["circle_z"], GL_TEXTURE0)
-        self.renderObjects["quad2d"].draw()
-
         self.projection = projection
         self.view = view
-        self.viewport = viewport
-
-
 
 
     def isOnAxis(self, x, y, axis):
-        
-        if axis == "x":
-            textureAxis = "circle_x"
-        elif axis == "y":
-            textureAxis = "circle_y"
-        elif axis == "z":
-            textureAxis = "circle_z"
-
-        fbo = glGenFramebuffers(1)
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo)
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.textures[textureAxis], 0)
-        glReadBuffer(GL_COLOR_ATTACHMENT0)
-
-        data = glReadPixels(x, y, 1, 1, GL_RGBA, GL_FLOAT)
-        clicked = data[0][0][3] # if no draw, alpha = 0
-        if clicked:
-            glBindFramebuffer(GL_FRAMEBUFFER, 0)
-            glDeleteFramebuffers(GLuint(fbo))
-            return True
-
-        glBindFramebuffer(GL_FRAMEBUFFER, 0)
-        glDeleteFramebuffers(GLuint(fbo))
-        return False
-
+        textureAxis = "circle_" + axis
+        position = self.getColorValueFloat(x, y, self.textures[textureAxis])
+        return bool(position[3]) # if no draw, alpha = 0
 
     def getColorValueFloat(self, x, y, tex):
         fbo = glGenFramebuffers(1)
@@ -1280,11 +1223,6 @@ class RotationManipulator3d(Manipulator):
         data = glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT)
         return data[0][0]
 
-
-    def updatePosition(self, mouseX, mouseY):
-        pass
-
-
     def mousePressEvent(self, x, y):
         self.mouseClicked = True
         if self.isOnAxis(x, y, "x"):
@@ -1296,7 +1234,6 @@ class RotationManipulator3d(Manipulator):
         if self.isOnAxis(x, y, "z"):
             self.axis["z"].clicked = True
             self.lastClickedWorldPos = self.getColorValueFloat(x, y, self.textures["circle_z"])
-
 
     def mouseReleaseEvent(self, x, y):
         self.mouseClicked = False
@@ -1317,12 +1254,10 @@ class RotationManipulator3d(Manipulator):
             P = self.lastClickedWorldPos
 
             # find angle between the two points using plane origin
-
             OP = normalize(sub(P, O))
             OM = normalize(sub(M, O))
             angle = numpy.arccos(numpy.dot(OP, OM))
             cross = numpy.cross(OP, OM)
-
             if numpy.dot(self.axis["x"].currentNormal, cross) > 0:
                 angle = -angle
 
@@ -1338,12 +1273,10 @@ class RotationManipulator3d(Manipulator):
             P = self.lastClickedWorldPos
 
             # find angle between the two points using plane origin
-
             OP = normalize(sub(P, O))
             OM = normalize(sub(M, O))
             angle = numpy.arccos(numpy.dot(OP, OM))
             cross = numpy.cross(OP, OM)
-
             if numpy.dot(self.axis["y"].currentNormal, cross) > 0:
                 angle = -angle
 
@@ -1358,12 +1291,10 @@ class RotationManipulator3d(Manipulator):
             P = self.lastClickedWorldPos
 
             # find angle between the two points using plane origin
-
             OP = normalize(sub(P, O))
             OM = normalize(sub(M, O))
             angle = numpy.arccos(numpy.dot(OP, OM))
             cross = numpy.cross(OP, OM)
-
             if numpy.dot(self.axis["z"].currentNormal, cross) > 0:
                 angle = -angle
 
@@ -1372,17 +1303,22 @@ class RotationManipulator3d(Manipulator):
             self.lastClickedWorldPos = M
 
 
-
-    def wheelEvent(self, delta):
-        pass
-
     def resizeEvent(self, width, height):
-        pass
+        for tex in self.textures.values():
+            glDeleteTextures(GLuint(tex))
+        self.textures = {
+            "circle_x": createColorTexture(width, height, GL_FLOAT),
+            "circle_y": createColorTexture(width, height, GL_FLOAT),
+            "circle_z": createColorTexture(width, height, GL_FLOAT),
+            "plane_x": createColorTexture(width, height, GL_FLOAT),
+            "plane_y": createColorTexture(width, height, GL_FLOAT),
+            "plane_z": createColorTexture(width, height, GL_FLOAT),
+            "depth": createDepthTexture(width, height)
+        }
+
 
     def freeRessources(self):
-        for rdo in self.axisRenderObjects.values():
-            rdo.freeRessources()
-        for rdo in self.utilityRenderObjects.values():
+        for rdo in self.renderObjects.values():
             rdo.freeRessources()
         for programm in self.programs.values():
             program.freeRessources()
@@ -1443,7 +1379,7 @@ class Viewport(QtOpenGL.QGLWidget):
         projection = perspective(30, self.width() / float(self.height()), 0.1, 10000.0)
         view = self.camera.getViewMatrix()
 
-        self.manipulators["rotation"].draw(self.viewport, projection, view)
+        self.manipulators["rotation"].draw(projection, view)
 
 
     def resizeGL(self, width, height):
